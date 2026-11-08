@@ -53,7 +53,7 @@ ia-codyssey-allinone-test1-2/
 ├── .gitignore
 ├── README.md
 ├── main.py                 # 프로그램 시작점 (구현 예정)
-├── quiz.py                 # Quiz 문항/데이터 관리 (구현 예정)
+├── quiz.py                 # 개별 Quiz 문항 표현 (구현 완료)
 ├── quiz_game.py            # QuizGame 진행 및 점수 로직 (구현 예정)
 ├── state.json              # 저장 상태 파일 (구현 예정, Git 추적 대상)
 └── docs/
