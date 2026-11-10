@@ -4,6 +4,10 @@
 
 의료 IT, 인공지능, 디지털 헬스케어를 주제로 한 Python 콘솔 퀴즈 프로젝트입니다. Python 표준 라이브러리만 사용합니다.
 
+## 퀴즈 주제 선정 이유
+
+의료 IT와 디지털 헬스케어는 실제 의료 현장의 정보 시스템과 연결되고, 인공지능은 의료 데이터 활용과 새로운 헬스케어 기술을 이해하는 데 중요합니다. 세 주제를 함께 다루어 Python 기초 문법을 익히면서 관련 용어와 활용 사례도 확인할 수 있도록 구성했습니다.
+
 ## 실행 방법
 
 프로젝트 루트에서 실행합니다.
@@ -76,6 +80,30 @@ git pull --ff-only origin main
 - Step 8 점수·히스토리·저장·힌트: [01_first_score.png](docs/screenshots/core_features/mission1-2-step8-score-evidence/01_first_score.png), [02_best_score.png](docs/screenshots/core_features/mission1-2-step8-score-evidence/02_best_score.png), [03_score_history.png](docs/screenshots/core_features/mission1-2-step8-score-evidence/03_score_history.png), [04_persistence.png](docs/screenshots/core_features/mission1-2-step8-score-evidence/04_persistence.png), [05_hint_display.png](docs/screenshots/core_features/mission1-2-step8-score-evidence/05_hint_display.png), [06_hint_deduction.png](docs/screenshots/core_features/mission1-2-step8-score-evidence/06_hint_deduction.png)
 - Step 9 퀴즈 삭제: [01_delete_menu.png](docs/screenshots/core_features/mission1-2-step9-delete-evidence/01_delete_menu.png), [02_delete_success.png](docs/screenshots/core_features/mission1-2-step9-delete-evidence/02_delete_success.png), [03_delete_cancel.png](docs/screenshots/core_features/mission1-2-step9-delete-evidence/03_delete_cancel.png), [04_delete_persistence.png](docs/screenshots/core_features/mission1-2-step9-delete-evidence/04_delete_persistence.png), [05_history_preserved.png](docs/screenshots/core_features/mission1-2-step9-delete-evidence/05_history_preserved.png)
 
+## 제출 증빙
+
+아래 링크는 저장소에 포함된 환경 설정, 예외 처리, Git 실습 스크린샷입니다.
+
+### 실행 환경
+
+- [Python 개발 환경](docs/screenshots/environment/01_development_environment.png)
+
+### 예외 처리
+
+- [잘못된 메뉴 입력 처리](docs/screenshots/error_handling/01_invalid_menu_input.png)
+- [Ctrl+C 안전 종료](docs/screenshots/error_handling/02_keyboard_interrupt.png)
+- [EOFError 안전 종료](docs/screenshots/error_handling/03_eof_safe_exit.png)
+
+### Git 실습
+
+- **clone:** 저장소 복제는 [git clone](docs/screenshots/git_workflow/01_git_clone.png) 증빙을 참고하세요.
+- **pull:** 원격 `main` 최신화는 [git pull --ff-only origin main](docs/screenshots/git_workflow/02_git_pull.png) 증빙을 참고하세요.
+- **commit/push:** 복제한 저장소에서 변경 내용을 커밋하고 원격으로 보내는 과정은 [clone, commit, push](docs/screenshots/git_workflow/03_clone_commit_push.png) 증빙에 있습니다.
+- **원본 저장소 pull:** 원본 저장소에서 최신 변경을 가져오는 과정은 [원본 저장소 pull](docs/screenshots/git_workflow/04_original_repo_pull.png) 증빙에 있습니다.
+- **checkout:** 브랜치 전환은 [git checkout](docs/screenshots/git_workflow/05_git_checkout.png) 증빙에 있습니다.
+- **init:** 저장소 초기화는 [git init](docs/screenshots/git_workflow/06_git_init.png) 증빙에 있습니다.
+- **commit graph:** 브랜치와 커밋 흐름은 [커밋 그래프](docs/screenshots/git_workflow/07_git_commit_graph.png)에서 확인할 수 있습니다.
+
 ## 파일 구성
 
 ```text
@@ -98,6 +126,3 @@ python -m unittest discover -s tests -v
 ## 향후 기능
 
 - 해설과 오답 다시 풀기 등 확장 기능
-
-## Git clone/pull 실습 완료 기록
-별도 디렉터리에 저장소를 복제한 뒤 README를 수정하고, 원격 저장소에 반영하는 실습을 진행했습니다.
