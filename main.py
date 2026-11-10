@@ -2,6 +2,8 @@
 
 from collections.abc import Callable
 
+from quiz_game import QuizGame
+
 
 TITLE = "의료 IT · AI · 디지털 헬스케어 퀴즈"
 MENU_ITEMS = (
@@ -44,10 +46,14 @@ def show_menu(output_func: Callable[[str], None] = print) -> None:
         output_func(item)
 
 
-def handle_menu_choice(choice: int, output_func: Callable[[str], None] = print) -> bool:
+def handle_menu_choice(
+    choice: int,
+    output_func: Callable[[str], None] = print,
+    quiz_game: QuizGame | None = None,
+) -> bool:
     """메뉴를 처리하고 계속 실행할지 반환한다."""
     if choice == 1:
-        output_func("퀴즈 풀기 기능은 구현 예정입니다.")
+        (quiz_game or QuizGame(output_func=output_func)).play()
     elif choice == 2:
         output_func("퀴즈 추가 기능은 구현 예정입니다.")
     elif choice == 3:
@@ -68,7 +74,11 @@ def run(input_func: Callable[[str], str] = input,
             show_menu(output_func)
             choice = get_numeric_input("메뉴를 선택해 주세요 (1-5): ", 1, 5,
                                        input_func, output_func)
-            if not handle_menu_choice(choice, output_func):
+            if not handle_menu_choice(
+                choice,
+                output_func,
+                QuizGame(input_func=input_func, output_func=output_func),
+            ):
                 break
     except KeyboardInterrupt:
         output_func("\n키보드 중단을 감지했습니다. 프로그램을 종료합니다.")
