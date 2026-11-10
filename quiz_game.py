@@ -17,10 +17,12 @@ class QuizGame:
         quizzes: Sequence[Quiz] | None = None,
         input_func: Callable[[str], str] = input,
         output_func: Callable[[str], None] = print,
+        on_result: Callable[[dict[str, int]], None] | None = None,
     ) -> None:
         self.quizzes = list(get_default_quizzes() if quizzes is None else quizzes)
         self.input_func = input_func
         self.output_func = output_func
+        self.on_result = on_result
 
     def _read_number(self, prompt: str, minimum: int, maximum: int) -> int:
         while True:
@@ -44,10 +46,17 @@ class QuizGame:
 
         questions = random.sample(self.quizzes, count)
         correct = 0
+        hints_used = 0
         for index, quiz in enumerate(questions, start=1):
             self.output_func(f"\n문제 {index}/{count}")
             quiz.display()
-            answer = self._read_number("정답 번호 (1-4): ", 1, 4)
+            answer = self._read_answer(quiz)
+            if answer is None:
+                hints_used += 1
+                answer = self._read_answer(quiz)
+                while answer is None:
+                    hints_used += 1
+                    answer = self._read_answer(quiz)
             if quiz.check_answer(answer):
                 correct += 1
                 self.output_func("정답입니다!")
@@ -55,9 +64,28 @@ class QuizGame:
                 self.output_func("오답입니다.")
 
         incorrect = count - correct
-        score = round(correct * 100 / count)
+        score = max(0, round(correct * 100 / count) - hints_used * 10)
         self.output_func("\n퀴즈 결과")
         self.output_func(f"정답: {correct}개")
         self.output_func(f"오답: {incorrect}개")
         self.output_func(f"최종 점수: {score}/100점")
-        return {"correct": correct, "incorrect": incorrect, "score": score, "total": count}
+        result = {"correct": correct, "incorrect": incorrect, "score": score, "total": count}
+        if self.on_result is not None:
+            self.on_result(result)
+        return result
+
+    def _read_answer(self, quiz: Quiz) -> int | None:
+        """정답 번호 또는 힌트 요청을 읽는다. 힌트는 요청마다 10점 감점된다."""
+        while True:
+            raw = self.input_func("정답 번호 (1-4, 힌트는 h): ").strip()
+            if raw.lower() in {"h", "hint"}:
+                self.output_func(f"힌트: {quiz.hint}")
+                return None
+            try:
+                answer = int(raw)
+            except ValueError:
+                self.output_func("1부터 4 사이의 번호 또는 h를 입력해 주세요.")
+                continue
+            if 1 <= answer <= 4:
+                return answer
+            self.output_func("1부터 4 사이의 번호를 입력해 주세요.")

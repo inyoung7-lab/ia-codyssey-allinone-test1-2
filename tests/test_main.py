@@ -2,12 +2,15 @@
 
 import contextlib
 import io
+import tempfile
 import unittest
+from pathlib import Path
 
 from main import add_quiz, get_numeric_input, handle_menu_choice, run, show_quizzes
 from quiz_data import get_default_quizzes
 from quiz_game import QuizGame
 from unittest.mock import patch
+from state_store import StateStore
 
 
 class NumericInputTests(unittest.TestCase):
@@ -31,11 +34,11 @@ class MenuTests(unittest.TestCase):
         self.assertTrue(handle_menu_choice(1, lambda _: None, game))  # type: ignore[arg-type]
         self.assertTrue(game.played)
 
-    def test_choice_four_keeps_existing_pending_behavior(self) -> None:
-        for choice in range(4, 5):
-            messages: list[str] = []
-            self.assertTrue(handle_menu_choice(choice, messages.append))
-            self.assertIn("구현 예정입니다.", messages[0])
+    def test_score_menu_guides_when_no_games_have_been_played(self) -> None:
+        messages: list[str] = []
+        store = StateStore("unused-state.json")
+        self.assertTrue(handle_menu_choice(4, messages.append, state_store=store))
+        self.assertIn("아직 완료된 퀴즈 기록이 없습니다.", messages[0])
 
     def test_adds_quiz_and_preserves_it_in_game_question_pool(self) -> None:
         quizzes = get_default_quizzes()
@@ -97,10 +100,35 @@ class MenuTests(unittest.TestCase):
     def test_list_menu_returns_to_main_menu(self) -> None:
         values = iter(["3", "5"])
         messages: list[str] = []
-        with contextlib.redirect_stdout(io.StringIO()):
-            run(lambda _: next(values), messages.append)
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            run(lambda _: next(values), messages.append, Path(directory) / "state.json")
         self.assertTrue(any("퀴즈 목록" in message for message in messages))
         self.assertTrue(any("프로그램을 종료합니다." in message for message in messages))
+
+    def test_addition_game_history_and_restart_are_integrated(self) -> None:
+        defaults = get_default_quizzes()
+        values = iter([
+            "2", "저장할 사용자 문제", "가", "나", "다", "라", "1", "저장 힌트",
+            "1", "5", *(str(quiz.answer) for quiz in defaults[:5]), "4", "5",
+        ])
+        messages: list[str] = []
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            with patch("quiz_game.random.sample", return_value=defaults[:5]), contextlib.redirect_stdout(io.StringIO()):
+                run(lambda _: next(values), messages.append, state_path)
+
+            reloaded_messages: list[str] = []
+            restart_inputs = iter(["3", "4", "5"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(lambda _: next(restart_inputs), reloaded_messages.append, state_path)
+            self.assertTrue(any("최고 점수: 100/100점" in message for message in reloaded_messages))
+            self.assertTrue(any("게임 기록" in message for message in reloaded_messages))
+            self.assertTrue(state_path.is_file())
+            persisted = StateStore(state_path)
+            persisted.load(lambda _: None)
+            self.assertEqual(len(persisted.quizzes), 16)
+            self.assertEqual(persisted.quizzes[-1].question, "저장할 사용자 문제")
+            self.assertEqual(len(persisted.history), 1)
 
     def test_choice_five_exits(self) -> None:
         messages: list[str] = []
@@ -114,7 +142,8 @@ class MenuTests(unittest.TestCase):
             def interrupted_input(_: str) -> str:
                 raise exception
 
-            run(interrupted_input, messages.append)
+            with tempfile.TemporaryDirectory() as directory:
+                run(interrupted_input, messages.append, Path(directory) / "state.json")
             self.assertTrue(any(expected in message for message in messages))
 
     def test_eof_during_quiz_entry_exits_cleanly(self) -> None:
@@ -127,7 +156,8 @@ class MenuTests(unittest.TestCase):
             except StopIteration as error:
                 raise EOFError from error
 
-        run(input_until_eof, messages.append)
+        with tempfile.TemporaryDirectory() as directory:
+            run(input_until_eof, messages.append, Path(directory) / "state.json")
         self.assertTrue(any("입력 종료" in message for message in messages))
 
 

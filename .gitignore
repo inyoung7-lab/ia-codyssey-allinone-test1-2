@@ -14,6 +14,7 @@ env/
 .ruff_cache/
 .coverage
 htmlcov/
+state.json
 
 # Editor and OS files
 .vscode/

@@ -43,6 +43,24 @@ class QuizGameTests(unittest.TestCase):
         self.assertEqual(result["incorrect"], 15 - expected)
         self.assertEqual(result["score"], round(expected * 100 / 15))
 
+    def test_ten_question_mode(self) -> None:
+        quizzes = get_default_quizzes()
+        answers = iter(["10", *(str(quiz.answer) for quiz in quizzes[:10])])
+        with patch("quiz_game.random.sample", return_value=quizzes[:10]), contextlib.redirect_stdout(io.StringIO()):
+            result = QuizGame(quizzes, lambda _: next(answers), lambda _: None).play()
+        self.assertEqual(result["total"], 10)
+        self.assertEqual(result["score"], 100)
+
+    def test_each_hint_request_deducts_ten_points(self) -> None:
+        quizzes = get_default_quizzes()
+        answers = iter(["5", "h", str(quizzes[0].answer), *(str(q.answer) for q in quizzes[1:5])])
+        messages: list[str] = []
+        with patch("quiz_game.random.sample", return_value=quizzes[:5]), contextlib.redirect_stdout(io.StringIO()):
+            result = QuizGame(quizzes, lambda _: next(answers), messages.append).play()
+        self.assertEqual(result["correct"], 5)
+        self.assertEqual(result["score"], 90)
+        self.assertTrue(any("힌트:" in message for message in messages))
+
 
 if __name__ == "__main__":
     unittest.main()
