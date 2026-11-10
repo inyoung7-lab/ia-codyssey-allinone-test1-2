@@ -1,12 +1,13 @@
 """main.py의 메뉴와 공통 숫자 입력 테스트."""
 
 import contextlib
+import json
 import io
 import tempfile
 import unittest
 from pathlib import Path
 
-from main import add_quiz, get_numeric_input, handle_menu_choice, run, show_quizzes
+from main import add_quiz, delete_quiz, get_numeric_input, handle_menu_choice, run, show_quizzes
 from quiz_data import get_default_quizzes
 from quiz_game import QuizGame
 from unittest.mock import patch
@@ -39,6 +40,161 @@ class MenuTests(unittest.TestCase):
         store = StateStore("unused-state.json")
         self.assertTrue(handle_menu_choice(4, messages.append, state_store=store))
         self.assertIn("아직 완료된 퀴즈 기록이 없습니다.", messages[0])
+
+    def test_menu_six_deletes_and_persists_selected_quiz(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = StateStore(Path(directory) / "state.json")
+            store.load(lambda _: None)
+            original_question = store.quizzes[0].question
+            store.save(lambda _: None)
+            game = QuizGame(store.quizzes)
+            values = iter(["1", "y"])
+            messages: list[str] = []
+            self.assertTrue(handle_menu_choice(6, messages.append, game, lambda _: next(values), store))
+            self.assertEqual(len(game.quizzes), 14)
+            self.assertNotIn(original_question, [quiz.question for quiz in game.quizzes])
+            restored = StateStore(store.path)
+            restored.load(lambda _: None)
+            self.assertEqual(len(restored.quizzes), 14)
+            self.assertNotIn(original_question, [quiz.question for quiz in restored.quizzes])
+            self.assertIn("퀴즈가 삭제되었습니다.", messages)
+
+    def test_delete_cancel_preserves_memory_and_file_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = StateStore(Path(directory) / "state.json")
+            store.load(lambda _: None)
+            store.save(lambda _: None)
+            original_bytes = store.path.read_bytes()
+            game = QuizGame(store.quizzes)
+            original_quizzes = [quiz.to_dict() for quiz in game.quizzes]
+            messages: list[str] = []
+            values = iter(["1", "n"])
+            self.assertFalse(delete_quiz(game.quizzes, lambda _: next(values), messages.append, store))
+            # Explicitly verify a cancelled confirmation leaves the persisted state byte-for-byte unchanged.
+            self.assertEqual([quiz.to_dict() for quiz in game.quizzes], original_quizzes)
+            self.assertEqual(store.path.read_bytes(), original_bytes)
+
+    def test_invalid_and_blank_delete_numbers_are_retried(self) -> None:
+        quizzes = get_default_quizzes()
+        values = iter(["", "x", "99", "1", "y"])
+        messages: list[str] = []
+        self.assertTrue(delete_quiz(quizzes, lambda _: next(values), messages.append))
+        self.assertEqual(len(quizzes), 14)
+        self.assertTrue(any("비어" in message for message in messages))
+        self.assertTrue(any("숫자" in message for message in messages))
+        self.assertTrue(any("사이" in message for message in messages))
+
+    def test_empty_list_and_last_quiz_deletion_remain_empty_after_reload(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = StateStore(Path(directory) / "state.json")
+            store.load(lambda _: None)
+            store.update_quizzes([store.quizzes[0]], lambda _: None)
+            game = QuizGame(store.quizzes)
+            values = iter(["1", "y"])
+            messages: list[str] = []
+            self.assertTrue(handle_menu_choice(6, messages.append, game, lambda _: next(values), store))
+            self.assertEqual(game.quizzes, [])
+            data = json.loads(store.path.read_text(encoding="utf-8"))
+            self.assertEqual(data["quizzes"], [])
+            reloaded = StateStore(store.path)
+            reloaded.load(messages.append)
+            self.assertEqual(reloaded.quizzes, [])
+            self.assertTrue(handle_menu_choice(6, messages.append, QuizGame([]), state_store=reloaded))
+            self.assertIn("등록된 퀴즈가 없습니다.", messages)
+
+    def test_delete_preserves_high_score_and_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = StateStore(Path(directory) / "state.json")
+            store.load(lambda _: None)
+            store.record_game({"total": 5, "correct": 3, "incorrect": 2, "score": 60}, lambda _: None)
+            high_score = store.high_score.copy()
+            history = [record.copy() for record in store.history]
+            game = QuizGame(store.quizzes)
+            values = iter(["1", "y"])
+            self.assertTrue(delete_quiz(game.quizzes, lambda _: next(values), lambda _: None, store))
+            restored = StateStore(store.path)
+            restored.load(lambda _: None)
+            self.assertEqual(restored.high_score, high_score)
+            self.assertEqual(restored.history, history)
+
+    def test_failed_delete_save_keeps_memory_and_state_file_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = StateStore(Path(directory) / "state.json")
+            store.load(lambda _: None)
+            store.save(lambda _: None)
+            original_bytes = store.path.read_bytes()
+            game = QuizGame(store.quizzes)
+            messages: list[str] = []
+            values = iter(["1", "y"])
+            with patch("state_store.os.replace", side_effect=OSError("disk error")):
+                self.assertFalse(delete_quiz(game.quizzes, lambda _: next(values), messages.append, store))
+            self.assertEqual(len(game.quizzes), 15)
+            self.assertEqual(len(store.quizzes), 15)
+            self.assertEqual(store.path.read_bytes(), original_bytes)
+            self.assertTrue(any("저장에 실패" in message for message in messages))
+
+    def test_deleted_quiz_stays_deleted_after_program_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            initial_store = StateStore(state_path)
+            initial_store.load(lambda _: None)
+            initial_store.save(lambda _: None)
+            deleted_question = initial_store.quizzes[0].question
+            first_inputs = iter(["6", "1", "y", "5"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(lambda _: next(first_inputs), lambda _: None, state_path)
+
+            second_inputs = iter(["3", "5"])
+            listing_output: list[str] = []
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(lambda _: next(second_inputs), listing_output.append, state_path)
+            restored = StateStore(state_path)
+            restored.load(lambda _: None)
+            self.assertEqual(len(restored.quizzes), 14)
+            self.assertNotIn(deleted_question, [quiz.question for quiz in restored.quizzes])
+            self.assertTrue(any("14번 퀴즈" in message for message in listing_output))
+
+    def test_eof_during_delete_confirmation_exits_without_deleting(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            store = StateStore(state_path)
+            store.load(lambda _: None)
+            store.save(lambda _: None)
+            original_bytes = state_path.read_bytes()
+            values = iter(["6", "1"])
+            messages: list[str] = []
+
+            def input_until_eof(_: str) -> str:
+                try:
+                    return next(values)
+                except StopIteration as error:
+                    raise EOFError from error
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(input_until_eof, messages.append, state_path)
+            self.assertEqual(state_path.read_bytes(), original_bytes)
+            self.assertTrue(any("입력 종료" in message for message in messages))
+
+    def test_keyboard_interrupt_during_delete_confirmation_exits_safely(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            store = StateStore(state_path)
+            store.load(lambda _: None)
+            store.save(lambda _: None)
+            original_bytes = state_path.read_bytes()
+            values = iter(["6", "1"])
+            messages: list[str] = []
+
+            def interrupt_confirmation(_: str) -> str:
+                try:
+                    return next(values)
+                except StopIteration as error:
+                    raise KeyboardInterrupt from error
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                run(interrupt_confirmation, messages.append, state_path)
+            self.assertEqual(state_path.read_bytes(), original_bytes)
+            self.assertTrue(any("키보드 중단" in message for message in messages))
 
     def test_adds_quiz_and_preserves_it_in_game_question_pool(self) -> None:
         quizzes = get_default_quizzes()

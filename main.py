@@ -15,6 +15,7 @@ MENU_ITEMS = (
     "3. 퀴즈 목록",
     "4. 점수 확인",
     "5. 종료",
+    "6. 퀴즈 삭제",
 )
 
 
@@ -66,6 +67,7 @@ def add_quiz(
     quizzes: list[Quiz],
     input_func: Callable[[str], str] = input,
     output_func: Callable[[str], None] = print,
+    announce: bool = True,
 ) -> None:
     """사용자 입력을 검증해 퀴즈 목록에 새 문항을 추가한다."""
     question = get_nonempty_input("퀴즈 문제: ", input_func, output_func)
@@ -76,7 +78,8 @@ def add_quiz(
     answer = get_numeric_input("정답 번호 (1-4): ", 1, 4, input_func, output_func)
     hint = input_func("힌트: ").strip()
     quizzes.append(Quiz(question, choices, answer, hint))
-    output_func("퀴즈가 추가되었습니다!")
+    if announce:
+        output_func("퀴즈가 추가되었습니다!")
 
 
 def show_quizzes(
@@ -94,6 +97,44 @@ def show_quizzes(
         quiz.display()
 
 
+def delete_quiz(
+    quizzes: list[Quiz],
+    input_func: Callable[[str], str] = input,
+    output_func: Callable[[str], None] = print,
+    state_store: StateStore | None = None,
+) -> bool:
+    """선택한 퀴즈를 확인 후 삭제하고, 저장에 성공했을 때만 반영한다."""
+    if not quizzes:
+        output_func("등록된 퀴즈가 없습니다.")
+        return False
+
+    output_func("삭제할 퀴즈를 선택하세요:")
+    for index, quiz in enumerate(quizzes, start=1):
+        output_func(f"{index}. {quiz.question}")
+    selected = get_numeric_input("삭제할 퀴즈 번호: ", 1, len(quizzes), input_func, output_func)
+    quiz = quizzes[selected - 1]
+    output_func("삭제할 퀴즈 내용:")
+    quiz.display()
+
+    while True:
+        confirmation = input_func("정말 삭제할까요? (y/n): ").strip().lower()
+        if confirmation in {"y", "yes"}:
+            break
+        if confirmation in {"n", "no"}:
+            output_func("퀴즈 삭제를 취소했습니다.")
+            return False
+        output_func("y 또는 n으로 입력해 주세요.")
+
+    updated_quizzes = quizzes.copy()
+    del updated_quizzes[selected - 1]
+    if state_store is not None and not state_store.update_quizzes(updated_quizzes, output_func):
+        output_func("저장에 실패해 퀴즈를 삭제하지 않았습니다.")
+        return False
+    quizzes[:] = updated_quizzes
+    output_func("퀴즈가 삭제되었습니다.")
+    return True
+
+
 def handle_menu_choice(
     choice: int,
     output_func: Callable[[str], None] = print,
@@ -106,9 +147,16 @@ def handle_menu_choice(
         (quiz_game or QuizGame(output_func=output_func)).play()
     elif choice == 2:
         game = quiz_game or QuizGame(output_func=output_func)
-        add_quiz(game.quizzes, input_func, output_func)
-        if state_store is not None:
-            state_store.update_quizzes(game.quizzes, output_func)
+        if state_store is None:
+            add_quiz(game.quizzes, input_func, output_func)
+        else:
+            updated_quizzes = game.quizzes.copy()
+            add_quiz(updated_quizzes, input_func, output_func, announce=False)
+            if state_store.update_quizzes(updated_quizzes, output_func):
+                game.quizzes[:] = updated_quizzes
+                output_func("퀴즈가 추가되었습니다!")
+            else:
+                output_func("저장에 실패해 퀴즈 추가를 취소했습니다.")
     elif choice == 3:
         game = quiz_game or QuizGame(output_func=output_func)
         show_quizzes(game.quizzes, output_func)
@@ -128,9 +176,12 @@ def handle_menu_choice(
                     f"{record['datetime']} | {record['questions']}문제 | "
                     f"정답 {record['correct']}개 | {record['score']}/100점"
                 )
-    else:
+    elif choice == 5:
         output_func("프로그램을 종료합니다.")
         return False
+    elif choice == 6:
+        game = quiz_game or QuizGame(output_func=output_func)
+        delete_quiz(game.quizzes, input_func, output_func, state_store)
     return True
 
 
@@ -149,7 +200,7 @@ def run(input_func: Callable[[str], str] = input,
     try:
         while True:
             show_menu(output_func)
-            choice = get_numeric_input("메뉴를 선택해 주세요 (1-5): ", 1, 5,
+            choice = get_numeric_input("메뉴를 선택해 주세요 (1-6): ", 1, 6,
                                        input_func, output_func)
             if not handle_menu_choice(
                 choice,
@@ -163,7 +214,6 @@ def run(input_func: Callable[[str], str] = input,
         output_func("\n키보드 중단을 감지했습니다. 프로그램을 종료합니다.")
     except EOFError:
         output_func("\n입력 종료를 감지했습니다. 프로그램을 종료합니다.")
-    # 저장 기능 구현 시에는 이 종료 경로를 정리 단계와 연결해 안전하게 저장한다.
 
 
 if __name__ == "__main__":

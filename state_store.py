@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from quiz import Quiz
 from quiz_data import get_default_quizzes
@@ -21,9 +21,17 @@ class StateStore:
         self.high_score: dict[str, Any] | None = None
         self.history: list[dict[str, Any]] = []
 
-    def load(self, output_func=print) -> None:
+    def load(self, output_func: Callable[[str], None] = print) -> None:
         """저장 상태를 복원하고, 없거나 손상된 파일에는 기본 상태를 사용한다."""
-        if not self.path.exists():
+        try:
+            exists = self.path.exists()
+        except OSError as error:
+            self.quizzes = get_default_quizzes()
+            self.high_score = None
+            self.history = []
+            output_func(f"저장 파일을 확인할 수 없어 기본 퀴즈로 시작합니다: {error}")
+            return
+        if not exists:
             self.quizzes = get_default_quizzes()
             self.high_score = None
             self.history = []
@@ -77,7 +85,7 @@ class StateStore:
         ):
             raise ValueError("게임 기록 점수 형식이 올바르지 않습니다.")
 
-    def save(self, output_func=print) -> bool:
+    def save(self, output_func: Callable[[str], None] = print) -> bool:
         """상태를 UTF-8 JSON으로 원자적으로 저장한다."""
         data = {
             "version": self.VERSION,
@@ -92,7 +100,7 @@ class StateStore:
                 state_file.write("\n")
             os.replace(temporary_path, self.path)
             return True
-        except OSError as error:
+        except (OSError, UnicodeError, TypeError, ValueError) as error:
             try:
                 temporary_path.unlink(missing_ok=True)
             except OSError:
@@ -100,11 +108,23 @@ class StateStore:
             output_func(f"저장 파일을 쓸 수 없습니다: {error}")
             return False
 
-    def update_quizzes(self, quizzes: list[Quiz], output_func=print) -> bool:
+    def update_quizzes(
+        self,
+        quizzes: list[Quiz],
+        output_func: Callable[[str], None] = print,
+    ) -> bool:
+        previous_quizzes = self.quizzes
         self.quizzes = list(quizzes)
-        return self.save(output_func)
+        if self.save(output_func):
+            return True
+        self.quizzes = previous_quizzes
+        return False
 
-    def record_game(self, result: dict[str, int], output_func=print) -> bool:
+    def record_game(
+        self,
+        result: dict[str, int],
+        output_func: Callable[[str], None] = print,
+    ) -> bool:
         """완료 게임을 기록하고 엄격히 더 높은 점수만 최고 점수로 갱신한다."""
         record: dict[str, Any] = {
             "datetime": datetime.now().astimezone().isoformat(timespec="seconds"),

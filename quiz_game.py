@@ -38,6 +38,10 @@ class QuizGame:
 
     def play(self) -> dict[str, int]:
         """문제 수를 고르고 한 판을 진행한 뒤 결과 요약을 반환한다."""
+        if len(self.quizzes) < min(self.QUESTION_COUNTS):
+            self.output_func("퀴즈를 시작하려면 등록된 문항이 최소 5개 필요합니다.")
+            return {"correct": 0, "incorrect": 0, "score": 0, "total": 0}
+
         self.output_func("문제 수를 선택하세요: 5, 10, 15")
         count = self._read_number("문제 수 (5/10/15): ", 5, 15)
         while count not in self.QUESTION_COUNTS:

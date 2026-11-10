@@ -61,6 +61,15 @@ class QuizGameTests(unittest.TestCase):
         self.assertEqual(result["score"], 90)
         self.assertTrue(any("힌트:" in message for message in messages))
 
+    def test_game_with_too_few_quizzes_returns_without_recording(self) -> None:
+        messages: list[str] = []
+        recorded: list[dict[str, int]] = []
+        game = QuizGame(get_default_quizzes()[:4], output_func=messages.append, on_result=recorded.append)
+        result = game.play()
+        self.assertEqual(result["total"], 0)
+        self.assertFalse(recorded)
+        self.assertTrue(any("최소 5개" in message for message in messages))
+
 
 if __name__ == "__main__":
     unittest.main()
