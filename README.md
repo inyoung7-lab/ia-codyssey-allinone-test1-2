@@ -98,3 +98,6 @@ python -m unittest discover -s tests -v
 ## 향후 기능
 
 - 해설과 오답 다시 풀기 등 확장 기능
+
+## Git clone/pull 실습 완료 기록
+별도 디렉터리에 저장소를 복제한 뒤 README를 수정하고, 원격 저장소에 반영하는 실습을 진행했습니다.
