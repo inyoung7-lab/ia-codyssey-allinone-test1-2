@@ -1,9 +1,11 @@
 """의료 IT·AI 퀴즈 게임의 콘솔 메뉴."""
 
 from collections.abc import Callable
+from pathlib import Path
 
 from quiz import Quiz
 from quiz_game import QuizGame
+from state_store import StateStore
 
 
 TITLE = "의료 IT · AI · 디지털 헬스케어 퀴즈"
@@ -97,6 +99,7 @@ def handle_menu_choice(
     output_func: Callable[[str], None] = print,
     quiz_game: QuizGame | None = None,
     input_func: Callable[[str], str] = input,
+    state_store: StateStore | None = None,
 ) -> bool:
     """메뉴를 처리하고 계속 실행할지 반환한다."""
     if choice == 1:
@@ -104,11 +107,27 @@ def handle_menu_choice(
     elif choice == 2:
         game = quiz_game or QuizGame(output_func=output_func)
         add_quiz(game.quizzes, input_func, output_func)
+        if state_store is not None:
+            state_store.update_quizzes(game.quizzes, output_func)
     elif choice == 3:
         game = quiz_game or QuizGame(output_func=output_func)
         show_quizzes(game.quizzes, output_func)
     elif choice == 4:
-        output_func("점수 확인 기능은 구현 예정입니다.")
+        if state_store is None or not state_store.history:
+            output_func("아직 완료된 퀴즈 기록이 없습니다.")
+        else:
+            best = state_store.high_score
+            if best is not None:
+                output_func(
+                    f"최고 점수: {best['score']}/100점 "
+                    f"({best['correct']}/{best['questions']}문제, {best['datetime']})"
+                )
+            output_func("게임 기록")
+            for record in state_store.history:
+                output_func(
+                    f"{record['datetime']} | {record['questions']}문제 | "
+                    f"정답 {record['correct']}개 | {record['score']}/100점"
+                )
     else:
         output_func("프로그램을 종료합니다.")
         return False
@@ -116,9 +135,17 @@ def handle_menu_choice(
 
 
 def run(input_func: Callable[[str], str] = input,
-        output_func: Callable[[str], None] = print) -> None:
+        output_func: Callable[[str], None] = print,
+        state_path: str | Path | None = None) -> None:
     """메뉴를 반복 실행하고 입력 중단을 정상 종료로 처리한다."""
-    quiz_game = QuizGame(input_func=input_func, output_func=output_func)
+    state_store = StateStore(state_path)
+    state_store.load(output_func)
+    quiz_game = QuizGame(
+        state_store.quizzes,
+        input_func=input_func,
+        output_func=output_func,
+        on_result=lambda result: state_store.record_game(result, output_func),
+    )
     try:
         while True:
             show_menu(output_func)
@@ -129,6 +156,7 @@ def run(input_func: Callable[[str], str] = input,
                 output_func,
                 quiz_game,
                 input_func,
+                state_store,
             ):
                 break
     except KeyboardInterrupt:
