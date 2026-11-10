@@ -15,11 +15,22 @@ class NumericInputTests(unittest.TestCase):
 
 
 class MenuTests(unittest.TestCase):
-    def test_menu_choices_one_to_four_are_pending(self) -> None:
-        for choice in range(1, 5):
+    def test_quiz_choice_runs_game(self) -> None:
+        class StubGame:
+            played = False
+
+            def play(self) -> None:
+                self.played = True
+
+        game = StubGame()
+        self.assertTrue(handle_menu_choice(1, lambda _: None, game))  # type: ignore[arg-type]
+        self.assertTrue(game.played)
+
+    def test_choices_two_to_four_keep_existing_pending_behavior(self) -> None:
+        for choice in range(2, 5):
             messages: list[str] = []
             self.assertTrue(handle_menu_choice(choice, messages.append))
-            self.assertIn("구현 예정입니다", messages[0])
+            self.assertIn("구현 예정입니다.", messages[0])
 
     def test_choice_five_exits(self) -> None:
         messages: list[str] = []
