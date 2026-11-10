@@ -1,8 +1,10 @@
 """main.py의 메뉴와 공통 숫자 입력 테스트."""
 
+import contextlib
+import io
 import unittest
 
-from main import add_quiz, get_numeric_input, handle_menu_choice, run
+from main import add_quiz, get_numeric_input, handle_menu_choice, run, show_quizzes
 from quiz_data import get_default_quizzes
 from quiz_game import QuizGame
 from unittest.mock import patch
@@ -29,8 +31,8 @@ class MenuTests(unittest.TestCase):
         self.assertTrue(handle_menu_choice(1, lambda _: None, game))  # type: ignore[arg-type]
         self.assertTrue(game.played)
 
-    def test_choices_two_to_four_keep_existing_pending_behavior(self) -> None:
-        for choice in range(3, 5):
+    def test_choice_four_keeps_existing_pending_behavior(self) -> None:
+        for choice in range(4, 5):
             messages: list[str] = []
             self.assertTrue(handle_menu_choice(choice, messages.append))
             self.assertIn("구현 예정입니다.", messages[0])
@@ -67,6 +69,38 @@ class MenuTests(unittest.TestCase):
         self.assertEqual(quizzes[-1].answer, 3)
         self.assertEqual(sum("입력이 비어 있습니다" in message for message in messages), 3)
         self.assertEqual(sum("숫자" in message or "사이" in message for message in messages), 2)
+
+    def test_quiz_list_shows_all_defaults_and_added_quiz_without_answers_or_hints(self) -> None:
+        quizzes = get_default_quizzes()
+        added = iter(["사용자 목록 문제", "목록 선택 1", "목록 선택 2", "목록 선택 3", "목록 선택 4", "4", "비공개 힌트"])
+        add_quiz(quizzes, lambda _: next(added), lambda _: None)
+        game = QuizGame(quizzes)
+        menu_messages: list[str] = []
+        with contextlib.redirect_stdout(io.StringIO()) as displayed:
+            self.assertTrue(handle_menu_choice(3, menu_messages.append, game))
+        listing = displayed.getvalue()
+        self.assertIn("퀴즈 목록", menu_messages)
+        self.assertIn("사용자 목록 문제", listing)
+        for quiz in quizzes:
+            self.assertIn(quiz.question, listing)
+            for choice in quiz.choices:
+                self.assertIn(choice, listing)
+            self.assertNotIn(quiz.hint, listing)
+        self.assertNotIn("정답 번호", listing)
+        self.assertNotIn("비공개 힌트", listing)
+
+    def test_empty_quiz_list_is_reported(self) -> None:
+        messages: list[str] = []
+        show_quizzes([], messages.append)
+        self.assertEqual(messages, ["등록된 퀴즈가 없습니다."])
+
+    def test_list_menu_returns_to_main_menu(self) -> None:
+        values = iter(["3", "5"])
+        messages: list[str] = []
+        with contextlib.redirect_stdout(io.StringIO()):
+            run(lambda _: next(values), messages.append)
+        self.assertTrue(any("퀴즈 목록" in message for message in messages))
+        self.assertTrue(any("프로그램을 종료합니다." in message for message in messages))
 
     def test_choice_five_exits(self) -> None:
         messages: list[str] = []

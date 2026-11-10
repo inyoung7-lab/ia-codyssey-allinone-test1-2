@@ -77,6 +77,21 @@ def add_quiz(
     output_func("퀴즈가 추가되었습니다!")
 
 
+def show_quizzes(
+    quizzes: list[Quiz],
+    output_func: Callable[[str], None] = print,
+) -> None:
+    """전체 퀴즈의 순번, 문제, 선택지를 표시한다."""
+    if not quizzes:
+        output_func("등록된 퀴즈가 없습니다.")
+        return
+
+    output_func("퀴즈 목록")
+    for index, quiz in enumerate(quizzes, start=1):
+        output_func(f"\n{index}번 퀴즈")
+        quiz.display()
+
+
 def handle_menu_choice(
     choice: int,
     output_func: Callable[[str], None] = print,
@@ -90,7 +105,8 @@ def handle_menu_choice(
         game = quiz_game or QuizGame(output_func=output_func)
         add_quiz(game.quizzes, input_func, output_func)
     elif choice == 3:
-        output_func("퀴즈 목록 기능은 구현 예정입니다.")
+        game = quiz_game or QuizGame(output_func=output_func)
+        show_quizzes(game.quizzes, output_func)
     elif choice == 4:
         output_func("점수 확인 기능은 구현 예정입니다.")
     else:
