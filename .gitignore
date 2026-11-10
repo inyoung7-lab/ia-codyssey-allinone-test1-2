@@ -16,6 +16,11 @@ env/
 htmlcov/
 state.json
 
+# Local environment files (keep the template trackable)
+.env
+.env.*
+!.env.example
+
 # Editor and OS files
 .vscode/
 .idea/

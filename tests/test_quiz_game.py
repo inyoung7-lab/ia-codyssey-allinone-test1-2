@@ -62,13 +62,64 @@ class QuizGameTests(unittest.TestCase):
         self.assertTrue(any("힌트:" in message for message in messages))
 
     def test_game_with_too_few_quizzes_returns_without_recording(self) -> None:
+        for count in (0, 4):
+            with self.subTest(count=count):
+                messages: list[str] = []
+                recorded: list[dict[str, int]] = []
+                game = QuizGame(
+                    get_default_quizzes()[:count],
+                    output_func=messages.append,
+                    on_result=recorded.append,
+                )
+                with patch("quiz_game.random.sample") as sample:
+                    result = game.play()
+                self.assertEqual(result["total"], 0)
+                self.assertFalse(recorded)
+                sample.assert_not_called()
+                self.assertTrue(any("최소 5개" in message for message in messages))
+
+    def test_question_modes_do_not_exceed_available_quizzes(self) -> None:
+        cases = (
+            (5, ["5"], 5),
+            (7, ["10", "5"], 5),
+            (9, ["10", "5"], 5),
+            (10, ["10"], 10),
+            (14, ["15", "10"], 10),
+            (15, ["15"], 15),
+        )
+        for available, count_inputs, selected_count in cases:
+            with self.subTest(available=available):
+                quizzes = get_default_quizzes()[:available]
+                answers = iter([*count_inputs, *(str(quiz.answer) for quiz in quizzes[:selected_count])])
+                messages: list[str] = []
+                with patch(
+                    "quiz_game.random.sample",
+                    side_effect=lambda pool, count: pool[:count],
+                ) as sample, contextlib.redirect_stdout(io.StringIO()):
+                    result = QuizGame(quizzes, lambda _: next(answers), messages.append).play()
+                sample.assert_called_once_with(quizzes, selected_count)
+                self.assertEqual(result["total"], selected_count)
+                self.assertEqual(result["correct"], selected_count)
+                if len(count_inputs) > 1:
+                    self.assertTrue(any("선택할 수 없습니다" in message for message in messages))
+
+    def test_rechecks_count_before_sampling(self) -> None:
+        quizzes = get_default_quizzes()
         messages: list[str] = []
         recorded: list[dict[str, int]] = []
-        game = QuizGame(get_default_quizzes()[:4], output_func=messages.append, on_result=recorded.append)
-        result = game.play()
+        game: QuizGame
+
+        def shrink_pool_and_select_ten(_: str) -> str:
+            game.quizzes[:] = game.quizzes[:5]
+            return "10"
+
+        game = QuizGame(quizzes, shrink_pool_and_select_ten, messages.append, recorded.append)
+        with patch("quiz_game.random.sample") as sample:
+            result = game.play()
         self.assertEqual(result["total"], 0)
+        sample.assert_not_called()
         self.assertFalse(recorded)
-        self.assertTrue(any("최소 5개" in message for message in messages))
+        self.assertTrue(any("보다 많은" in message for message in messages))
 
 
 if __name__ == "__main__":

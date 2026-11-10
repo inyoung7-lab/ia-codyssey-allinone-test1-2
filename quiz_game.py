@@ -42,11 +42,33 @@ class QuizGame:
             self.output_func("퀴즈를 시작하려면 등록된 문항이 최소 5개 필요합니다.")
             return {"correct": 0, "incorrect": 0, "score": 0, "total": 0}
 
-        self.output_func("문제 수를 선택하세요: 5, 10, 15")
-        count = self._read_number("문제 수 (5/10/15): ", 5, 15)
-        while count not in self.QUESTION_COUNTS:
-            self.output_func("5, 10, 15 중에서 선택해 주세요.")
-            count = self._read_number("문제 수 (5/10/15): ", 5, 15)
+        available_counts = tuple(
+            count for count in self.QUESTION_COUNTS if count <= len(self.quizzes)
+        )
+        available_text = ", ".join(str(count) for count in available_counts)
+        self.output_func(f"현재 선택 가능한 문제 수: {available_text}")
+        while True:
+            count = self._read_number(
+                f"문제 수 ({available_text}): ", 5, 15
+            )
+            if count in available_counts:
+                break
+            if count not in self.QUESTION_COUNTS:
+                self.output_func(
+                    f"{available_text} 중에서 선택해 주세요. 현재 등록된 퀴즈는 "
+                    f"{len(self.quizzes)}개입니다."
+                )
+                continue
+            self.output_func(
+                f"등록된 퀴즈는 현재 {len(self.quizzes)}개라 {count}문제 모드는 "
+                f"선택할 수 없습니다. 가능한 문제 수: {available_text}"
+            )
+
+        if count > len(self.quizzes):
+            self.output_func(
+                f"등록된 퀴즈 {len(self.quizzes)}개보다 많은 {count}문제는 출제할 수 없습니다."
+            )
+            return {"correct": 0, "incorrect": 0, "score": 0, "total": 0}
 
         questions = random.sample(self.quizzes, count)
         correct = 0

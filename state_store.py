@@ -132,7 +132,14 @@ class StateStore:
             "correct": result["correct"],
             "score": result["score"],
         }
+        previous_high_score = self.high_score
+        previous_history = self.history.copy()
         self.history.append(record)
         if self.high_score is None or record["score"] > self.high_score["score"]:
             self.high_score = record.copy()
-        return self.save(output_func)
+        if self.save(output_func):
+            return True
+
+        self.high_score = previous_high_score
+        self.history[:] = previous_history
+        return False
