@@ -1,5 +1,7 @@
 # Codyssey 올인원 미션 1-2
 
+구현 원리, 사용 예시, 테스트 근거를 설명하는 [프로젝트 구현 및 검증 안내](docs/mission-guide.md)를 참고하세요.
+
 ## 프로젝트 개요
 
 의료 IT, 인공지능, 디지털 헬스케어를 주제로 한 Python 콘솔 퀴즈 프로젝트입니다. Python 표준 라이브러리만 사용합니다.
@@ -28,7 +30,7 @@ python main.py
 
 ## 저장 데이터
 
-게임 상태는 프로젝트 루트의 `state.json`에 UTF-8 JSON(`ensure_ascii=False`)으로 저장합니다. 퀴즈 추가·삭제 및 완료 게임 기록은 저장되며 재시작 후 복원됩니다. 파일이 없으면 기본 퀴즈 15개와 빈 점수 기록으로 시작합니다. JSON이 손상되었거나 읽기 오류가 있으면 안내 후 기본값을 사용합니다. 저장은 임시 파일을 쓴 뒤 교체하며, 기록 저장에 실패하면 메모리의 최고 점수와 히스토리도 이전 상태로 복구합니다. 정상 저장된 빈 퀴즈 목록은 기본 퀴즈로 대체하지 않습니다. `state.json`은 개인 실행 기록이므로 Git에서 제외됩니다.
+게임 상태는 프로젝트 루트의 `state.json`에 UTF-8 JSON(`ensure_ascii=False`)으로 저장합니다. 퀴즈 추가·삭제 및 완료 게임 기록은 저장되며 재시작 후 복원됩니다. 파일이 없으면 기본 퀴즈 15개와 빈 점수 기록으로 시작하고 저장할 수 있습니다. JSON이 손상되었거나 읽기 오류가 있으면 안내 후 메모리에서 기본값을 사용합니다. 읽기에 실패한 원본 파일을 보존하기 위해 복구 전에는 덮어쓰기를 막습니다. 수동 복구 절차는 [구현 및 검증 안내](docs/mission-guide.md#읽지-못한-저장-파일을-복구하는-절차)를 참고하세요. 저장은 임시 파일을 쓴 뒤 교체하며, 기록 저장에 실패하면 메모리의 최고 점수와 히스토리도 이전 상태로 복구합니다. 정상 저장된 빈 퀴즈 목록은 기본 퀴즈로 대체하지 않습니다. `state.json`은 개인 실행 기록이므로 Git에서 제외됩니다.
 
 ```json
 {
@@ -71,6 +73,12 @@ git pull --ff-only origin main
 - [main 최신 상태 확인 (`git pull --ff-only origin main`)](docs/screenshots/git_workflow/02_git_pull.png)
 
 이후 기능별 `feature/quiz-play`, `feature/quiz-add`, `feature/quiz-list`, `feature/quiz-score-history`, `feature/quiz-delete` 브랜치에서 기능을 작업한 커밋과 원격 브랜치가 확인됩니다. Git 이력에는 이 기능 브랜치들의 작업 커밋과 Pull Request #1~#5 병합 커밋이 남아 있습니다. 따라서 브랜치 작업, 커밋, 원격 Push 및 PR 병합은 저장소의 브랜치·커밋 이력으로 확인되며, clone과 pull은 위 스크린샷으로 확인됩니다. 각 기능의 구체적 브랜치 생성·커밋·Push 명령은 별도 기록이 없어 재현 명령으로 단정해 적지 않았습니다.
+
+현재 `main` HEAD `c7498d5` 기준 비병합 커밋은 12개이며, 다음 명령으로 개수를 확인할 수 있습니다. 주요 기능별 해시와 전체 커밋 목록은 [프로젝트 구현 및 검증 안내](docs/mission-guide.md#실제-작업-과정과-git-이력)에 정리했습니다.
+
+```powershell
+git rev-list --count --no-merges HEAD
+```
 
 ### 기능별 스크린샷 증빙
 

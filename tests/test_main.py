@@ -133,6 +133,93 @@ class MenuTests(unittest.TestCase):
             self.assertEqual(store.path.read_bytes(), original_bytes)
             self.assertTrue(any("저장에 실패" in message for message in messages))
 
+    def test_quiz_add_and_delete_are_not_applied_after_state_load_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            original_bytes = b'{"version": 99, broken'
+            add_store = StateStore(Path(directory) / "add-state.json")
+            add_store.path.write_bytes(original_bytes)
+            add_store.load(lambda _: None)
+            add_game = QuizGame(add_store.quizzes)
+            original_quizzes = [quiz.to_dict() for quiz in add_game.quizzes]
+            add_messages: list[str] = []
+            add_inputs = iter(["새 문항", "가", "나", "다", "라", "1", "힌트"])
+
+            self.assertTrue(
+                handle_menu_choice(
+                    2,
+                    add_messages.append,
+                    add_game,
+                    lambda _: next(add_inputs),
+                    add_store,
+                )
+            )
+            self.assertEqual([quiz.to_dict() for quiz in add_game.quizzes], original_quizzes)
+            self.assertEqual([quiz.to_dict() for quiz in add_store.quizzes], original_quizzes)
+            self.assertEqual(add_store.path.read_bytes(), original_bytes)
+            self.assertNotIn("퀴즈가 추가되었습니다!", add_messages)
+            self.assertTrue(
+                any("저장에 실패해 퀴즈 추가를 취소" in item for item in add_messages)
+            )
+
+            delete_store = StateStore(Path(directory) / "delete-state.json")
+            delete_store.path.write_bytes(original_bytes)
+            delete_store.load(lambda _: None)
+            delete_game = QuizGame(delete_store.quizzes)
+            original_quizzes = [quiz.to_dict() for quiz in delete_game.quizzes]
+            delete_messages: list[str] = []
+            delete_inputs = iter(["1", "y"])
+
+            self.assertTrue(
+                handle_menu_choice(
+                    6,
+                    delete_messages.append,
+                    delete_game,
+                    lambda _: next(delete_inputs),
+                    delete_store,
+                )
+            )
+            self.assertEqual([quiz.to_dict() for quiz in delete_game.quizzes], original_quizzes)
+            self.assertEqual([quiz.to_dict() for quiz in delete_store.quizzes], original_quizzes)
+            self.assertEqual(delete_store.path.read_bytes(), original_bytes)
+            self.assertNotIn("퀴즈가 삭제되었습니다.", delete_messages)
+            self.assertTrue(
+                any(
+                    "저장에 실패해 퀴즈를 삭제하지 않았습니다." in item
+                    for item in delete_messages
+                )
+            )
+
+    def test_completed_game_is_not_recorded_after_state_load_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            state_path.write_bytes(b'{"version": 99, broken')
+            original_bytes = state_path.read_bytes()
+            store = StateStore(state_path)
+            store.load(lambda _: None)
+            original_quizzes = [quiz.to_dict() for quiz in store.quizzes]
+            default_quizzes = get_default_quizzes()
+            answers = iter(["5", *(str(quiz.answer) for quiz in default_quizzes[:5])])
+            messages: list[str] = []
+            game = QuizGame(
+                store.quizzes,
+                lambda _: next(answers),
+                messages.append,
+                lambda result: store.record_game(result, messages.append),
+            )
+
+            with (
+                patch("quiz_game.random.sample", return_value=default_quizzes[:5]),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                result = game.play()
+
+            self.assertEqual(result["total"], 5)
+            self.assertEqual([quiz.to_dict() for quiz in store.quizzes], original_quizzes)
+            self.assertIsNone(store.high_score)
+            self.assertEqual(store.history, [])
+            self.assertEqual(state_path.read_bytes(), original_bytes)
+            self.assertTrue(any("원본 보존을 위해 저장을 중단" in item for item in messages))
+
     def test_deleted_quiz_stays_deleted_after_program_restart(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state_path = Path(directory) / "state.json"

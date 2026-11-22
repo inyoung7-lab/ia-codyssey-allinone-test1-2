@@ -33,6 +33,86 @@ class StateStoreTests(unittest.TestCase):
             self.assertEqual(store.history, [])
             self.assertTrue(messages)
 
+    def test_failed_load_blocks_overwrite_until_file_is_repaired(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            unsupported_state = {
+                "version": 99,
+                "quizzes": [
+                    {
+                        "question": "기존 기록 보존 확인",
+                        "choices": ["가", "나", "다", "라"],
+                        "answer": 1,
+                        "hint": "원본 값",
+                    }
+                ],
+                "high_score": None,
+                "history": [],
+            }
+            path.write_text(json.dumps(unsupported_state, ensure_ascii=False), encoding="utf-8")
+            original_bytes = path.read_bytes()
+            messages: list[str] = []
+            store = StateStore(path)
+            store.load(messages.append)
+
+            self.assertEqual(len(store.quizzes), 15)
+            self.assertFalse(store.save(messages.append))
+            added_quiz = Quiz("추가", ["가", "나", "다", "라"], 1, "")
+            self.assertFalse(
+                store.update_quizzes(store.quizzes + [added_quiz], messages.append)
+            )
+            self.assertFalse(
+                store.record_game(
+                    {"total": 5, "correct": 4, "incorrect": 1, "score": 80},
+                    messages.append,
+                )
+            )
+            self.assertEqual(path.read_bytes(), original_bytes)
+            self.assertEqual(len(store.quizzes), 15)
+            self.assertIsNone(store.high_score)
+            self.assertEqual(store.history, [])
+            self.assertTrue(any("원본 보존" in message for message in messages))
+
+            repaired_state = {
+                "version": StateStore.VERSION,
+                "quizzes": [Quiz("복구된 파일", ["가", "나", "다", "라"], 1, "").to_dict()],
+                "high_score": None,
+                "history": [],
+            }
+            path.write_text(json.dumps(repaired_state, ensure_ascii=False), encoding="utf-8")
+            store.load(messages.append)
+            self.assertEqual([quiz.question for quiz in store.quizzes], ["복구된 파일"])
+            added_quiz = Quiz("추가", ["가", "나", "다", "라"], 1, "")
+            self.assertTrue(
+                store.update_quizzes(store.quizzes + [added_quiz], messages.append)
+            )
+            self.assertNotEqual(path.read_bytes(), original_bytes)
+
+    def test_corrupt_json_is_left_untouched_until_it_is_repaired(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            path.write_text('{"version": 1, broken', encoding="utf-8")
+            original_bytes = path.read_bytes()
+            messages: list[str] = []
+            store = StateStore(path)
+            store.load(messages.append)
+
+            self.assertEqual(len(store.quizzes), 15)
+            self.assertFalse(store.save(messages.append))
+            self.assertEqual(path.read_bytes(), original_bytes)
+            self.assertTrue(any("원본 보존" in message for message in messages))
+
+            repaired_state = {
+                "version": StateStore.VERSION,
+                "quizzes": [],
+                "high_score": None,
+                "history": [],
+            }
+            path.write_text(json.dumps(repaired_state), encoding="utf-8")
+            store.load(messages.append)
+            self.assertEqual(store.quizzes, [])
+            self.assertTrue(store.save(messages.append))
+
     def test_valid_json_with_invalid_shape_recovers_and_io_errors_are_reported(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "state.json"

@@ -20,18 +20,21 @@ class StateStore:
         self.quizzes = get_default_quizzes()
         self.high_score: dict[str, Any] | None = None
         self.history: list[dict[str, Any]] = []
+        self._load_failed = False
 
     def load(self, output_func: Callable[[str], None] = print) -> None:
         """저장 상태를 복원하고, 없거나 손상된 파일에는 기본 상태를 사용한다."""
         try:
             exists = self.path.exists()
         except OSError as error:
+            self._load_failed = True
             self.quizzes = get_default_quizzes()
             self.high_score = None
             self.history = []
             output_func(f"저장 파일을 확인할 수 없어 기본 퀴즈로 시작합니다: {error}")
             return
         if not exists:
+            self._load_failed = False
             self.quizzes = get_default_quizzes()
             self.high_score = None
             self.history = []
@@ -57,7 +60,9 @@ class StateStore:
             self.quizzes = quizzes
             self.high_score = high_score
             self.history = history
+            self._load_failed = False
         except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+            self._load_failed = True
             self.quizzes = get_default_quizzes()
             self.high_score = None
             self.history = []
@@ -87,6 +92,13 @@ class StateStore:
 
     def save(self, output_func: Callable[[str], None] = print) -> bool:
         """상태를 UTF-8 JSON으로 원자적으로 저장한다."""
+        if self._load_failed:
+            output_func(
+                "저장 파일을 읽지 못해 원본 보존을 위해 저장을 중단했습니다. "
+                "파일을 복구한 뒤 프로그램을 다시 실행해 주세요."
+            )
+            return False
+
         data = {
             "version": self.VERSION,
             "quizzes": [quiz.to_dict() for quiz in self.quizzes],
